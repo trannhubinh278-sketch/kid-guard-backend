@@ -1,0 +1,14 @@
+bin/
+obj/
+.vs/
+*.user
+*.suo
+appsettings.json
+appsettings.*.local.json
+*.db
+*.db-shm
+*.db-wal
+.env
+.env.*
+publish/
+

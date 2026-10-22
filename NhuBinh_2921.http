@@ -1,0 +1,71 @@
+@host = http://localhost:5111
+
+POST {{host}}/api/Authenticate/register
+Content-Type: application/json
+
+{
+  "username": "demo_admin",
+  "email": "demo_admin@example.com",
+  "password": "REPLACE_WITH_TEST_PASSWORD",
+  "initials": "NB",
+  "role": "Admin"
+}
+
+###
+
+POST {{host}}/api/Authenticate/login
+Content-Type: application/json
+
+{
+  "username": "demo_admin",
+  "password": "REPLACE_WITH_TEST_PASSWORD"
+}
+
+### Dán token nhận được sau đăng nhập vào đây
+
+@token = PASTE_TOKEN_HERE
+
+GET {{host}}/api/ProductApi
+Authorization: Bearer {{token}}
+
+###
+
+GET {{host}}/api/ProductApi/search?name=ao
+Authorization: Bearer {{token}}
+
+###
+
+POST {{host}}/api/Categories
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Thời trang",
+  "description": "Danh mục sản phẩm thời trang"
+}
+
+###
+
+POST {{host}}/api/ProductApi
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Áo thun",
+  "price": 150000,
+  "image": "https://example.com/ao-thun.jpg",
+  "description": "Áo thun mẫu mới",
+  "categoryId": 1
+}
+
+###
+
+POST {{host}}/api/Posts
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "userName": "admin2921",
+  "content": "Bài đăng đầu tiên",
+  "image": "https://example.com/post.jpg"
+}
