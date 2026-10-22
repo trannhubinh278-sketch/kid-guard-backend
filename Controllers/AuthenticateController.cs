@@ -17,22 +17,27 @@ namespace NhuBinh_2921.Controllers;
 [ApiController]
 public class AuthenticateController : ControllerBase
 {
-    private sealed record OtpChallenge(string UserId, string Code, DateTime ExpiresAtUtc, int FailedAttempts = 0);
+    private const string EmailVerificationPendingClaim = "email_verification_pending";
+    private sealed record OtpChallenge(
+        string UserId, string Code, DateTime ExpiresAtUtc, string Purpose, int FailedAttempts = 0);
     private static readonly ConcurrentDictionary<string, OtpChallenge> OtpChallenges = new();
     private readonly UserManager<User> _userManager;
     private readonly RoleManager<IdentityRole> _roleManager;
     private readonly IConfiguration _configuration;
     private readonly IWebHostEnvironment _environment;
     private readonly SmsGatewayService _smsGateway;
+    private readonly EmailOtpService _emailOtp;
 
     public AuthenticateController(UserManager<User> userManager, RoleManager<IdentityRole> roleManager,
-        IConfiguration configuration, IWebHostEnvironment environment, SmsGatewayService smsGateway)
+        IConfiguration configuration, IWebHostEnvironment environment, SmsGatewayService smsGateway,
+        EmailOtpService emailOtp)
     {
         _userManager = userManager;
         _roleManager = roleManager;
         _configuration = configuration;
         _environment = environment;
         _smsGateway = smsGateway;
+        _emailOtp = emailOtp;
     }
 
     [HttpPost("register")]
@@ -64,9 +69,10 @@ public class AuthenticateController : ControllerBase
 
         var challengeId = Guid.NewGuid().ToString("N");
         var code = RandomNumberGenerator.GetInt32(100000, 1000000).ToString();
-        OtpChallenges[challengeId] = new OtpChallenge(user.Id, code, DateTime.UtcNow.AddMinutes(5));
-        var dispatch = await _smsGateway.SendOtpAsync(user.PhoneNumber, code, default);
-        var maskedPhone = MaskPhone(user.PhoneNumber);
+        await _userManager.AddClaimAsync(user, new Claim(EmailVerificationPendingClaim, "true"));
+        OtpChallenges[challengeId] = new OtpChallenge(
+            user.Id, code, DateTime.UtcNow.AddMinutes(5), "registration");
+        var dispatch = await _emailOtp.SendRegistrationOtpAsync(user.Email, code, HttpContext.RequestAborted);
         var devOtp = !dispatch.Sent ? code : null;
 
         return Ok(new
@@ -76,8 +82,8 @@ public class AuthenticateController : ControllerBase
             requiresOtp = true,
             challengeId,
             expiresInSeconds = 300,
-            delivery = dispatch.Sent ? "sms" : "development",
-            maskedPhone,
+            delivery = dispatch.Sent ? "email" : "development",
+            maskedEmail = EmailOtpService.MaskEmail(user.Email),
             devOtp,
             username = user.UserName
         });
@@ -132,9 +138,14 @@ public class AuthenticateController : ControllerBase
         if (await _userManager.IsLockedOutAsync(user))
             return Unauthorized(new { status = false, message = "Tài khoản đã bị khóa. Vui lòng liên hệ quản trị viên." });
 
+        var userClaims = await _userManager.GetClaimsAsync(user);
+        if (userClaims.Any(claim => claim.Type == EmailVerificationPendingClaim))
+            return Unauthorized(new { status = false, message = "Vui lòng xác thực email đăng ký trước khi đăng nhập." });
+
         var challengeId = Guid.NewGuid().ToString("N");
         var code = RandomNumberGenerator.GetInt32(100000, 1000000).ToString();
-        OtpChallenges[challengeId] = new OtpChallenge(user.Id, code, DateTime.UtcNow.AddMinutes(5));
+        OtpChallenges[challengeId] = new OtpChallenge(
+            user.Id, code, DateTime.UtcNow.AddMinutes(5), "login");
         var dispatch = await _smsGateway.SendOtpAsync(user.PhoneNumber, code, cancellationToken);
         var maskedPhone = MaskPhone(user.PhoneNumber);
         var isChild = await _userManager.IsInRoleAsync(user, "Child");
@@ -176,6 +187,16 @@ public class AuthenticateController : ControllerBase
         OtpChallenges.TryRemove(model.ChallengeId, out _);
         var user = await _userManager.FindByIdAsync(challenge.UserId);
         if (user == null) return Unauthorized(new { status = false, message = "Tài khoản không tồn tại." });
+        if (challenge.Purpose == "registration")
+        {
+            user.EmailConfirmed = true;
+            var pendingClaims = (await _userManager.GetClaimsAsync(user))
+                .Where(claim => claim.Type == EmailVerificationPendingClaim)
+                .ToList();
+            foreach (var claim in pendingClaims)
+                await _userManager.RemoveClaimAsync(user, claim);
+            await _userManager.UpdateAsync(user);
+        }
         var roles = await _userManager.GetRolesAsync(user);
         var claims = new List<Claim>
         {
@@ -184,7 +205,10 @@ public class AuthenticateController : ControllerBase
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
         claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
-        return Ok(new { status = true, message = "Đăng nhập thành công.", token = GenerateToken(claims), roles,
+        var successMessage = challenge.Purpose == "registration"
+            ? "Đăng ký và xác thực email thành công."
+            : "Đăng nhập thành công.";
+        return Ok(new { status = true, message = successMessage, token = GenerateToken(claims), roles,
             user = new { user.UserName, user.Email, user.PhoneNumber, user.Initials } });
     }
 

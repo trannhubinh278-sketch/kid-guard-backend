@@ -4,7 +4,7 @@ ASP.NET Core 8 API của hệ thống Kid Guard, phục vụ ứng dụng Flutte
 
 ## Chức năng chính
 
-- Đăng ký, đăng nhập JWT và xác thực OTP.
+- Đăng ký bằng email và xác thực Email OTP; đăng nhập JWT với SMS OTP.
 - Quản lý tài khoản Admin, Parent và Child.
 - Ghép thiết bị Child bằng QR.
 - Đồng bộ GPS, pin, âm thanh và chuyển động.
@@ -32,7 +32,11 @@ Có thể cấu hình bằng biến môi trường:
 - `JWTKey__Secret`
 - `JWTKey__ValidIssuer`
 - `JWTKey__ValidAudience`
-- `SmsGateway__BaseUrl`
+- `SmsGateway__Url`, `SmsGateway__Username`, `SmsGateway__Password`
+- `KIDGUARD_EMAIL_HOST`, `KIDGUARD_EMAIL_PORT`
+- `KIDGUARD_EMAIL_USERNAME`, `KIDGUARD_EMAIL_PASSWORD`
+- `KIDGUARD_EMAIL_FROM`, `KIDGUARD_EMAIL_FROM_NAME`
+- `KIDGUARD_EMAIL_ENABLE_SSL`
 
 `appsettings.json` được loại khỏi Git để không công khai thông tin nhạy cảm.
 

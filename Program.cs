@@ -29,6 +29,7 @@ builder.Services.AddIdentity<User, IdentityRole>(options =>
 builder.Services.AddControllers();
 builder.Services.AddHttpClient<SmsGatewayService>(client =>
     client.Timeout = TimeSpan.FromSeconds(8));
+builder.Services.AddScoped<EmailOtpService>();
 builder.Services.AddScoped<IProductRepository, ProductRepository>();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
