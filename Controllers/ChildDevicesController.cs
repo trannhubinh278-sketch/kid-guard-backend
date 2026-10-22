@@ -124,7 +124,9 @@ public class ChildDevicesController : ControllerBase
         var device = await _context.ChildDevices.FirstOrDefaultAsync(d => d.Id == id);
         if (device == null) return NotFound();
 
-        var isAuthorized = (!string.IsNullOrWhiteSpace(token) && SecureEquals(device.TelemetryToken, token))
+        var isAuthorized = (!string.IsNullOrWhiteSpace(token)
+                && !string.IsNullOrWhiteSpace(device.TelemetryToken)
+                && SecureEquals(device.TelemetryToken, token))
             || (!string.IsNullOrWhiteSpace(UserId) && (device.ChildUserId == UserId || device.ParentUserId == UserId || IsAdmin));
 
         if (!isAuthorized)
